@@ -10,6 +10,14 @@ Score = Impact (1-10) * Confidence (1-10) * Ease (1-10)
 - **ICE Score:** 800
 - **Action:** Implement first.
 
+## 1.5. Server Mod Integration (Enforce Script) (High Priority)
+**Feature:** Custom Server Mod for Telemetry (FPS, Player Pos) & Commands
+- **Impact (10):** Unlocks real-time data and advanced admin actions impossible via standard RCON.
+- **Confidence (8):** Enforce Script is standard, but RCON bridge requires chat interception workarounds.
+- **Ease (5):** Requires C# style scripting and manual JSON serialization.
+- **ICE Score:** 400
+- **Action:** Implement parallel to Freeze Detection.
+
 ## 2. Freeze/Crash Detection (High Priority)
 **Feature:** Watchdog for process/connection state
 - **Impact (9):** Critical for server reliability (main user pain point).
@@ -43,6 +51,6 @@ Score = Impact (1-10) * Confidence (1-10) * Ease (1-10)
 - **Action:** Quick win, can be added early or parallel.
 
 ## Implementation Roadmap
-1. **Phase 1 (MVP):** Electron Setup + AntD, RCON Connection, Server Status (ICE: 800).
+1. **Phase 1 (MVP):** Electron Setup + AntD ✅, RCON Connection ✅, Server Status ✅.
 2. **Phase 2 (Stability):** Freeze/Crash Detection + Notifications (ICE: 504, 450).
 3. **Phase 3 (Data):** Log Streaming + Analytics Dashboard (ICE: 378, 294).

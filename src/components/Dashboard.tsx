@@ -35,6 +35,18 @@ const Dashboard: React.FC = () => {
         </Tag>
       )
     },
+    {
+      title: 'Health',
+      dataIndex: 'health',
+      key: 'health',
+      render: (health?: number) => health ? <Tag color={health > 80 ? 'green' : health > 40 ? 'orange' : 'red'}>{Math.round(health)}%</Tag> : '-'
+    },
+    {
+      title: 'Position',
+      dataIndex: 'pos',
+      key: 'pos',
+      render: (pos?: string) => pos ? <span style={{ fontSize: 12 }}>{pos}</span> : '-'
+    }
   ];
 
   return (

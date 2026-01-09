@@ -1,6 +1,6 @@
 modded class MissionServer
 {
-    private ref RestContext m_RstrtApi;
+    private RestContext m_RstrtApi;
     // Default to localhost, should be configurable via JSON or similar in production
     private string m_RstrtEndpoint = "http://127.0.0.1:3000/api/telemetry";
 

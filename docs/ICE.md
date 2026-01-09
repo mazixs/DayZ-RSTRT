@@ -52,5 +52,7 @@ Score = Impact (1-10) * Confidence (1-10) * Ease (1-10)
 
 ## Implementation Roadmap
 1. **Phase 1 (MVP):** Electron Setup + AntD ✅, RCON Connection ✅, Server Status ✅.
-2. **Phase 2 (Stability):** Freeze/Crash Detection + Notifications (ICE: 504, 450).
+2. **Phase 2 (Stability):** 
+    - Server Mod Telemetry (FPS/Players) ✅
+    - Freeze/Crash Detection + Notifications (Pending).
 3. **Phase 3 (Data):** Log Streaming + Analytics Dashboard (ICE: 378, 294).

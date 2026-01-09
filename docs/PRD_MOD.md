@@ -11,13 +11,13 @@ The mod acts as a bridge between the Game Engine and the Electron Application, o
 
 ## 3. Architecture & Communication
 
-### 3.1 Integration Pattern: HTTP/RestApi (Phase 2 - Preferred)
-We will use the DayZ Engine's **RestApi** module to push telemetry directly to the Manager.
+### 3.1 Integration Pattern: HTTP/RestApi (Implemented)
+We use the DayZ Engine's **RestApi** module to push telemetry directly to the Manager.
 
-*   **Trigger**: Timer-based (every X seconds) or Event-based (PlayerJoin, PlayerHit).
+*   **Trigger**: Timer-based (every 5 seconds).
 *   **Sender**: The Mod uses `GetRestApi()` to send HTTP POST requests.
-*   **Receiver**: The Manager (Electron) hosts a lightweight HTTP server (e.g., Express.js) on a configurable port.
-*   **Payload**: Rich JSON data containing FPS, detailed player list, positions, etc.
+*   **Receiver**: The Manager (Electron) hosts a lightweight Express.js server on port 3000.
+*   **Payload**: JSON data containing Server FPS, Player Count, and Player Details (ID, Pos, Health).
 
 ### 3.2 File Structure
 ```text
@@ -31,21 +31,23 @@ server-mod/
 ## 4. Technical Specifications (Enforce Script)
 
 ### 4.1 RestApi Implementation
-We will use `RestContext` and `RestCallback` to manage data transmission asynchronously.
+We use `RestContext` (without `ref` to avoid ownership issues) to manage data transmission.
 
 ```csharp
 modded class MissionServer {
-    private ref RestContext m_RstrtApi;
+    private RestContext m_RstrtApi;
     
     override void OnInit() {
         super.OnInit();
         // Initialize connection to local Manager instance
-        // URL should be configurable via server profile json
+        // IMPORTANT: If Server and Manager are on different machines, change 127.0.0.1 to Manager's IP
         m_RstrtApi = GetRestApi().GetRestContext("http://127.0.0.1:3000/api/telemetry");
         
         // Start Telemetry Loop
-        GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(SendTelemetry, 5000, true);
+        GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(Rstrt_SendTelemetry, 5000, true);
     }
+// ...
+```
 
     void SendTelemetry() {
         if (!m_RstrtApi) return;

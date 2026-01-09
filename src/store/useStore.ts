@@ -6,6 +6,8 @@ interface Player {
   guid: string
   ip: string
   ping: number
+  pos?: string
+  health?: number
 }
 
 interface ServerState {
@@ -37,10 +39,33 @@ export const useServerStore = create<ServerState>((set) => ({
     players: data.players,
     lastUpdate: data.timestamp 
   }),
-  updateTelemetry: (data) => set((state) => ({
-    serverFps: data.fps,
-    playerCount: data.playerCount,
-    lastUpdate: data.timestamp,
-    lastTelemetryUpdate: Date.now()
-  }))
+  updateTelemetry: (data) => set((state) => {
+    // Merge telemetry data (pos, health) into existing players list
+    // Mod 'id' corresponds to RCON 'guid'
+    let updatedPlayers = state.players;
+    
+    if (data.players && Array.isArray(data.players)) {
+      const telemMap = new Map(data.players.map((p: any) => [p.id, p]));
+      
+      updatedPlayers = state.players.map(p => {
+        const modData = telemMap.get(p.guid);
+        if (modData) {
+          return { 
+            ...p, 
+            pos: modData.pos, 
+            health: modData.health 
+          };
+        }
+        return p;
+      });
+    }
+
+    return {
+      serverFps: data.fps,
+      playerCount: data.playerCount,
+      lastUpdate: data.timestamp,
+      lastTelemetryUpdate: Date.now(),
+      players: updatedPlayers
+    };
+  })
 }))

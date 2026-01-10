@@ -1,15 +1,76 @@
+class RSTRTConfig
+{
+    string Endpoint;
+
+    void RSTRTConfig()
+    {
+        Endpoint = "http://127.0.0.1:3000/api/telemetry";
+    }
+}
+
+class RSTRT_RestCallback : RestCallback
+{
+    override void OnError(int errorCode)
+    {
+        Print("[RSTRT] Telemetry POST Error. Code: " + errorCode);
+    }
+
+    override void OnTimeout()
+    {
+        Print("[RSTRT] Telemetry POST Timeout");
+    }
+
+    override void OnSuccess(string data, int dataSize)
+    {
+        // Debug only: Print("[RSTRT] Telemetry Sent. Response: " + data);
+    }
+}
+
 modded class MissionServer
 {
     private RestContext m_RstrtApi;
-    // Default to localhost, should be configurable via JSON or similar in production
-    private string m_RstrtEndpoint = "http://127.0.0.1:3000/api/telemetry";
+    private string m_RstrtEndpoint;
+    private ref RSTRTConfig m_RstrtConfig;
+    private ref RSTRT_RestCallback m_RstrtCallback;
+    private ref array<Man> m_Rstrt_Players; // Reuse array to reduce GC
+
+    // FPS Calculation Variables
+    private float m_Rstrt_FpsTimer = 0;
+    private int m_Rstrt_FrameCount = 0;
+    private float m_Rstrt_CurrentFps = 60.0; // Default start value
 
     override void OnInit()
     {
         super.OnInit();
         Print("[RSTRT] Mod Initializing...");
         
-        // Setup RestApi
+        m_RstrtCallback = new RSTRT_RestCallback();
+        m_Rstrt_Players = new array<Man>;
+
+        // 1. Load Configuration
+        m_RstrtConfig = new RSTRTConfig();
+        string profileDir = "$profile:DayZ-RSTRT";
+        string cfgPath = profileDir + "/config.json";
+
+        if (!FileExist(profileDir))
+        {
+            MakeDirectory(profileDir);
+        }
+
+        if (FileExist(cfgPath))
+        {
+            JsonFileLoader<RSTRTConfig>.JsonLoadFile(cfgPath, m_RstrtConfig);
+            Print("[RSTRT] Config loaded. Endpoint: " + m_RstrtConfig.Endpoint);
+        }
+        else
+        {
+            JsonFileLoader<RSTRTConfig>.JsonSaveFile(cfgPath, m_RstrtConfig);
+            Print("[RSTRT] Default config created at: " + cfgPath);
+        }
+
+        m_RstrtEndpoint = m_RstrtConfig.Endpoint;
+        
+        // 2. Setup RestApi
         // Note: RestApi module must be enabled in server config or startup parameters
         RestApi api = GetRestApi();
         if (api)
@@ -32,54 +93,68 @@ modded class MissionServer
         }
     }
 
+    override void OnUpdate(float timeslice)
+    {
+        super.OnUpdate(timeslice);
+        
+        // Manual FPS Calculation
+        m_Rstrt_FpsTimer += timeslice;
+        m_Rstrt_FrameCount++;
+
+        if (m_Rstrt_FpsTimer >= 1.0)
+        {
+            m_Rstrt_CurrentFps = m_Rstrt_FrameCount / m_Rstrt_FpsTimer;
+            m_Rstrt_FrameCount = 0;
+            m_Rstrt_FpsTimer = 0;
+        }
+    }
+
     void Rstrt_SendTelemetry()
     {
         if (!m_RstrtApi) return;
 
         // 1. Gather Data
-        // GetFps() returns the server FPS (simulation cycles per second)
-        float fps = GetGame().GetFps(); 
+        float fps = m_Rstrt_CurrentFps;
         
-        array<Man> players = new array<Man>;
-        GetGame().GetPlayers(players);
-        int playerCount = players.Count();
+        m_Rstrt_Players.Clear();
+        GetGame().GetPlayers(m_Rstrt_Players);
+        int playerCount = m_Rstrt_Players.Count();
 
-        // 2. Build JSON Manually (Enforce Script has no JSON lib)
-        string json = "{";
-        json += "\"fps\":" + fps + ",";
-        json += "\"playerCount\":" + playerCount + ",";
-        json += "\"timestamp\":" + GetGame().GetTime() + ",";
-        json += "\"players\":[";
+        // 2. Build JSON Manually
+        // Optimization: Reduce string concatenations on the main string
+        string json = "{\"fps\":" + fps + ",\"playerCount\":" + playerCount + ",\"timestamp\":" + GetGame().GetTime() + ",\"players\":[";
         
-        for (int i = 0; i < playerCount; i++)
+        if (playerCount > 0)
         {
-            PlayerBase pb = PlayerBase.Cast(players.Get(i));
-            if (pb && pb.GetIdentity())
+            for (int i = 0; i < playerCount; i++)
             {
-                string id = pb.GetIdentity().GetId();
-                string name = pb.GetIdentity().GetName();
-                vector pos = pb.GetPosition();
-                float health = pb.GetHealth("","");
-                
-                // Escape quotes in name just in case
-                // name.Replace("\"", "\\\""); // Basic replacement if available, otherwise assume safe for MVP
-                
-                json += "{";
-                json += "\"id\":\"" + id + "\",";
-                json += "\"name\":\"" + name + "\",";
-                json += "\"pos\":\"" + pos.ToString() + "\","; // Format: <x, y, z> or similar
-                json += "\"health\":" + health;
-                json += "}";
-                
-                if (i < playerCount - 1) json += ",";
+                PlayerBase pb = PlayerBase.Cast(m_Rstrt_Players.Get(i));
+                if (pb && pb.GetIdentity())
+                {
+                    string id = pb.GetIdentity().GetPlainId(); 
+                    string name = pb.GetIdentity().GetName();
+                    vector pos = pb.GetPosition();
+                    float health = pb.GetHealth("","");
+                    
+                    // Simple escape for quotes to prevent broken JSON
+                    name.Replace("\"", "'"); 
+                    
+                    // Build player object separately to append in one go
+                    string playerEntry = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"pos\":\"" + pos.ToString() + "\",\"health\":" + health + "}";
+                    
+                    json += playerEntry;
+                    if (i < playerCount - 1) json += ",";
+                }
             }
         }
         
         json += "]}";
 
         // 3. Send Data
-        // Print("[RSTRT] Pushing Telemetry: " + json);
-        // Using a generic RestCallback since we don't strictly need to handle the response yet
-        m_RstrtApi.POST(new RestCallback, "", json);
+        // Use our custom callback to capture specific error codes
+        if (m_RstrtCallback)
+        {
+            m_RstrtApi.POST(m_RstrtCallback, "", json);
+        }
     }
 }

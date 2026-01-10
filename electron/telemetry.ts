@@ -2,6 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import { BrowserWindow } from 'electron';
+import crypto from 'crypto';
 
 export class TelemetryServer {
   private app: express.Application;
@@ -22,18 +23,57 @@ export class TelemetryServer {
   private setupMiddleware() {
     this.app.use(cors());
     this.app.use(bodyParser.json());
-    // Parse text as JSON just in case Enforce Script sends weird content types
-    this.app.use(bodyParser.text({ type: 'application/json' }));
+    // Parse ALL other content types as text to handle missing headers from DayZ
+    this.app.use(bodyParser.text({ type: '*/*' }));
+    this.app.use(bodyParser.urlencoded({ extended: true }));
+  }
+
+  private calculateBEGuid(steamId: string): string {
+    try {
+      // Correct BattlEye GUID Formula: MD5("BE" + 8-byte Little Endian SteamID64)
+      // Verified with user data: 76561197996108375 -> 222ac690b634c55bc957aedd9d0e287f
+      const prefix = Buffer.from('BE');
+      const idBuffer = Buffer.alloc(8);
+      idBuffer.writeBigUInt64LE(BigInt(steamId));
+      const combined = Buffer.concat([prefix, idBuffer]);
+      return crypto.createHash('md5').update(combined).digest('hex');
+    } catch (error) {
+      console.error('[Telemetry] Error calculating BE GUID:', error);
+      return '';
+    }
   }
 
   private setupRoutes() {
     this.app.post('/api/telemetry', (req, res) => {
       try {
-        const data = req.body;
-        console.log('[Telemetry] Received data:', data);
+        let data = req.body;
 
-        if (this.mainWindow) {
-          this.mainWindow.webContents.send('telemetry-update', data);
+        // If body is string (text/plain or missing header), try to parse as JSON
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch (e) {
+            console.warn('[Telemetry] Received raw text that is not JSON:', data.substring(0, 100));
+          }
+        }
+
+        if (data && typeof data === 'object') {
+            // Process players to add BattlEye GUID
+            if (Array.isArray(data.players)) {
+                data.players = data.players.map((player: any) => {
+                    if (player.id) {
+                        player.steamId = player.id; // Keep original SteamID
+                        player.guid = this.calculateBEGuid(player.id);
+                    }
+                    return player;
+                });
+            }
+
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send('telemetry-update', data);
+            }
+        } else {
+          console.warn('[Telemetry] Received unknown data format:', data);
         }
 
         res.status(200).send({ status: 'ok' });

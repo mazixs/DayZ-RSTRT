@@ -1,49 +1,72 @@
-# Product Requirements Document (PRD): DayZ Server Manager (DayZ-RSTRT)
+# Требования к продукту (PRD): DayZ Server Manager (DayZ-RSTRT)
 
-## 1. Overview
-A cross-platform desktop application (Windows/Linux) for managing DayZ servers. It provides real-time monitoring, RCON control, analytics, and automated health checks (freeze/crash detection).
+## 1. Обзор
+Кроссплатформенное десктопное приложение (Windows/Linux) для управления серверами DayZ. Предоставляет мониторинг в реальном времени, управление через RCON, аналитику и автоматические проверки здоровья (обнаружение зависаний/крашей) через кастомный серверный мод.
 
-## 2. Core Features
+## 2. Ключевые функции
 
-### 2.1 Server Monitoring
-- **Real-time Status:** Online/Offline state, Player count, Server FPS (if available via RCON/logs).
-- **Log Stream:** Live view of server logs (ADM, RPT) via RCON or file system (SFTP/Local).
-- **Player Management:** List online players, kick/ban functionality.
+### 2.1 Мониторинг Сервера (Реализовано)
+- **Статус в реальном времени:** Онлайн/Оффлайн (через RCON).
+- **Детальная телеметрия (Мод):**
+  - **FPS Сервера:** Точный внутренний FPS движка.
+  - **Данные Игроков:** Здоровье, Позиция, SteamID64.
+- **Слияние данных:** Умное объединение данных RCON (IP, Пинг) с данными Мода (Здоровье, Позиция, GUID).
+  - **Механизм:** Мод отправляет `SteamID64`. Приложение вычисляет `BattlEye GUID` (MD5) для сопоставления с записями RCON.
 
-### 2.2 RCON Management
-- **Connection:** Support for local and remote RCON connections.
-- **Console:** Terminal-like interface for sending raw commands.
-- **Shortcuts:** Quick buttons for common commands (Global Chat, Weather, Time).
+### 2.2 Управление RCON (Реализовано)
+- **Подключение:** Поддержка стандартного протокола Source RCON.
+- **Авто-переподключение:** Надежная обработка разрывов с автоматическим повтором.
+- **Статус:** Визуальный индикатор подключения в боковой панели.
 
-### 2.3 Analytics & Reporting
-- **Charts:**
-  - Uptime/Downtime history.
-  - Player activity peaks.
-  - Restart frequency.
-- **Visuals:** Use Ant Design Charts / Recharts.
+### 2.3 Автоматизация и Здоровье (Реализовано)
+- **Обнаружение зависаний (Freeze Detection):**
+  - **Логика:** Мониторинг "сердцебиения" от RCON и Телеметрии Мода.
+  - **Условие:** Если RCON онлайн (процесс жив), НО телеметрия от мода не приходит > 15 сек — сервер помечается как **Зависший**.
+  - **Действие:** Критическое предупреждение в дашборде и системное уведомление Windows.
+- **Обнаружение крашей:** Детекция потери соединения RCON и падения процесса.
 
-### 2.4 Automation & Health
-- **Freeze Detection:** Monitor server heartbeat/response time. If unresponsive > X seconds, trigger alert/action.
-- **Crash Detection:** Detect abrupt process termination (if local) or connection loss (remote).
-- **Alerts:** Desktop notifications and optional Webhook support (Discord/Telegram) for events (Crash, Restart, High CPU).
+### 2.5 Планировщик и Менеджер Процессов (Реализовано)
+- **Автоматические Рестарты:**
+  - Настраиваемый интервал (например, каждые 4 часа).
+  - Таймер обратного отсчета в дашборде.
+- **Последовательность Мягкого Выключения:**
+  - **T-2m:** Блокировка сервера (команда `#lock`) для предотвращения входа новых игроков.
+  - **Уведомления:** Иммерсивные сообщения в чат (например, "Приближается шторм") за 30, 15, 5, 3, 2, 1 минуту.
+  - **Выключение:** Отправка команды `#shutdown`.
+- **Управление Жизненным Циклом Процесса:**
+  - **Авто-Рестарт:** Автоматический перезапуск `.exe` после выключения (планового или краша).
+  - **Watchdog (Сторожевой таймер):** Если после `#shutdown` процесс висит > 45 сек, происходит принудительное убийство (`SIGKILL`).
+  - **Различение Крашей:** Отличие "Планового рестарта" (игнорирование ошибок) от "Неожиданного краша" (алерт + попытка рестарта).
+  - **Локальное Управление:** Менеджер запускает `.exe` файл сервера локально.
 
-## 3. UX/UI Requirements
-- **Framework:** React + Electron.
-- **Design System:** Ant Design (AntD).
-- **Theme:** Dark mode by default (gaming aesthetic).
-- **Layout:**
-  - Sidebar navigation (Dashboard, Console, Players, Logs, Settings).
-  - Dashboard with "Monitor Dashboard" style gauges (AntD Progress dashboard type).
+### 2.6 Интерфейс Управления (Реализовано)
+- **Боковая панель:**
+  - Быстрый доступ к кнопкам **Start**, **Stop**, **Restart**.
+  - Индикатор статуса процесса и RCON.
+- **Настройки:**
+  - Конфигурация путей к серверу и параметров запуска.
+  - Редактирование текстов уведомлений о рестарте.
 
-## 4. Technical Stack
-- **Runtime:** Electron (Main + Renderer processes).
-- **Frontend:** React, TypeScript, Vite.
-- **UI Library:** Ant Design.
-- **State Management:** Zustand or TanStack Query.
-- **Data Persistence:** Electron Store (local config).
-- **Networking:** `node-rcon` or specific DayZ RCON libs, `gamedig` for querying.
+## 3. Архитектура
 
-## 5. Non-Functional Requirements
-- **Performance:** Low CPU/RAM usage in background.
-- **Security:** Encrypted storage for RCON passwords.
-- **Cross-Platform:** Builds for .exe (Windows) and .deb/.AppImage (Linux).
+### 3.1 Гибридная "Push" Архитектура
+- **Направление:** **Push** (Сервер -> Приложение) вместо Pull.
+- **Механизм:**
+  - **RCON (Pull):** Приложение опрашивает RCON каждые 2-5 сек (базовый статус/IP).
+  - **Мод (Push):** Enforce Script отправляет JSON телеметрию каждые 5 сек на HTTP сервер приложения.
+- **Преимущества:** Обход проблем с фаерволом для входящих соединений к игровому серверу; чистый поток данных.
+
+### 3.2 Поток Данных
+1.  **Мод:** Отправляет `SteamID64` + Health + Pos.
+2.  **Приложение (Бэкенд):** Вычисляет `BattlEye GUID` (MD5 от SteamID64).
+3.  **Приложение (Store):** Объединяет данные Мода с данными RCON (IP, Ping) используя `GUID` как ключ.
+
+## 4. Технический Стек
+- **Runtime:** Electron (Main + Renderer).
+- **Frontend:** React, TypeScript, Vite, Ant Design.
+- **Backend (Внутренний):** Express.js (Сервер Телеметрии).
+- **Мод:** Enforce Script (C-style).
+
+## 5. Безопасность и Конфигурация
+- **Конфиг:** `$profile:DayZ-RSTRT/config.json` на стороне сервера позволяет менять IP/Порт без перекомпиляции мода.
+- **Валидация:** Приложение проверяет структуру входящего JSON.

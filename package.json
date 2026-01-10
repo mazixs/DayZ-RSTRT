@@ -5,7 +5,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "tsc && vite build && set ELECTRON_BUILDER_CACHE=%TEMP%\\electron-builder-cache&& electron-builder --dir",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
@@ -32,6 +32,7 @@
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tree-kill": "^1.2.2",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
@@ -39,11 +40,22 @@
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
-    "electron": "^28.0.0",
+    "electron": "^39.2.7",
     "electron-builder": "^24.9.1",
     "typescript": "^5.3.3",
-    "vite": "^5.0.8",
+    "vite": "^7.3.1",
     "vite-plugin-electron": "^0.15.4",
     "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "build": {
+    "appId": "com.mazix.dayzrstrt",
+    "productName": "DayZ-RSTRT",
+    "directories": {
+      "output": "dist_electron_build"
+    },
+    "win": {
+      "target": "dir",
+      "forceCodeSigning": false
+    }
   }
 }

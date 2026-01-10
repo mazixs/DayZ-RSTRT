@@ -3,11 +3,27 @@ import path from 'node:path'
 import Store from 'electron-store'
 import { RconService } from './rcon'
 import { TelemetryServer } from './telemetry'
+import { ProcessManager } from './process-manager'
+import { SchedulerService } from './scheduler'
 
 // Initialize local store
 const store = new Store()
 const rcon = new RconService()
 const telemetry = new TelemetryServer()
+const processManager = new ProcessManager()
+const scheduler = new SchedulerService(rcon, processManager)
+
+// Load saved scheduler settings
+const savedMessages = store.get('messages');
+if (savedMessages) {
+    scheduler.setMessages(savedMessages as any);
+}
+const savedInterval = store.get('restartInterval') as number;
+const schedulerEnabled = store.get('schedulerEnabled') as boolean;
+if (schedulerEnabled && savedInterval) {
+    // Auto-start scheduler if it was enabled
+    scheduler.start(savedInterval);
+}
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
@@ -60,8 +76,22 @@ function createWindow() {
     },
   })
 
-  // Pass window to telemetry server
+  // Pass window to services
   telemetry.setMainWindow(win)
+  scheduler.setMainWindow(win)
+
+  // Listen for ProcessManager events
+  processManager.on('status-change', (status) => {
+    win?.webContents.send('process-status-change', status)
+  })
+
+  processManager.on('crash', () => {
+    win?.webContents.send('process-crash')
+  })
+
+  processManager.on('error', (err) => {
+    win?.webContents.send('process-error', err.message)
+  })
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
@@ -73,6 +103,7 @@ function createWindow() {
     stopPolling()
     win = null
     telemetry.setMainWindow(null as any)
+    scheduler.setMainWindow(null as any)
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -90,6 +121,7 @@ function createWindow() {
   }
 }
 
+
 // IPC Handlers
 ipcMain.handle('get-settings', () => {
   return store.store
@@ -102,8 +134,6 @@ ipcMain.handle('save-settings', (_event, settings) => {
 
 // RCON Handlers
 ipcMain.handle('rcon-connect', async (_event, config) => {
-  console.log('[RCON] Connect request received with config:', JSON.stringify(config, null, 2)); // Debug log
-
   // Normalize config from either direct args or store
   const connectionConfig = {
     host: config?.host || config?.rconHost || store.get('rconHost'),
@@ -136,12 +166,51 @@ ipcMain.handle('rcon-status', () => {
   return rcon.isConnected()
 })
 
+// Process Manager Handlers
+ipcMain.handle('process-start', async (_event, config) => {
+    // Config: { executablePath: string, args: string[], autoRestart: boolean }
+    processManager.configure(config.executablePath, config.args, config.autoRestart);
+    await processManager.start();
+    return true;
+});
+
+ipcMain.handle('process-stop', async (_event, force) => {
+    await processManager.stop(force);
+    return true;
+});
+
+ipcMain.handle('process-status', () => {
+    return processManager.isRunning();
+});
+
+// Scheduler Handlers
+ipcMain.handle('scheduler-start', (_event, intervalMinutes) => {
+    scheduler.start(intervalMinutes);
+    return true;
+});
+
+ipcMain.handle('scheduler-stop', () => {
+    scheduler.stop();
+    return true;
+});
+
+ipcMain.handle('scheduler-status', () => {
+    return scheduler.getStatus();
+});
+
+ipcMain.handle('scheduler-set-messages', (_event, messages) => {
+    scheduler.setMessages(messages);
+    return true;
+});
+
+
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     telemetry.stop() // Stop telemetry server
+    scheduler.stop() // Stop scheduler
     app.quit()
     win = null
   }

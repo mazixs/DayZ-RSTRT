@@ -1,12 +1,51 @@
-import React from 'react';
-import { Card, Col, Row, Statistic, Progress, Table, Tag } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, UserOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Card, Col, Row, Statistic, Progress, Table, Tag, Alert, Space } from 'antd';
+import { ArrowUpOutlined, UserOutlined, ClockCircleOutlined, SyncOutlined, PoweroffOutlined } from '@ant-design/icons';
 import { useServerStore } from '../store/useStore';
 
 const Dashboard: React.FC = () => {
-  const { isConnected, playerCount, players, lastUpdate, serverFps, lastTelemetryUpdate } = useServerStore();
+  const { isConnected, playerCount, players, lastUpdate, serverFps, lastTelemetryUpdate, isProcessRunning, scheduler } = useServerStore();
+  const [timeToRestart, setTimeToRestart] = useState<string>('--:--');
 
   const isModConnected = Date.now() - lastTelemetryUpdate < 15000 && lastTelemetryUpdate > 0;
+
+  // Freeze Detection: RCON is connected (process alive) but Telemetry stopped (simulation dead)
+  const isFrozen = isConnected && !isModConnected && lastTelemetryUpdate > 0;
+
+  useEffect(() => {
+    if (isFrozen) {
+      if (Notification.permission !== 'granted') {
+        Notification.requestPermission();
+      }
+      
+      new Notification('DayZ Server Critical Warning', {
+        body: 'Server Freeze Detected! Telemetry has stopped receiving updates.',
+        silent: false
+      });
+    }
+  }, [isFrozen]);
+
+  // Countdown Timer Logic
+  useEffect(() => {
+      const timer = setInterval(() => {
+          if (scheduler.isRunning && scheduler.nextRestartTime > 0) {
+              const now = Date.now();
+              const diff = scheduler.nextRestartTime - now;
+              
+              if (diff <= 0) {
+                  setTimeToRestart('Restarting...');
+              } else {
+                  const hours = Math.floor(diff / (1000 * 60 * 60));
+                  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                  setTimeToRestart(`${hours}h ${minutes}m ${seconds}s`);
+              }
+          } else {
+              setTimeToRestart('Disabled');
+          }
+      }, 1000);
+      return () => clearInterval(timer);
+  }, [scheduler]);
 
   const columns = [
     {
@@ -18,7 +57,7 @@ const Dashboard: React.FC = () => {
       title: 'GUID',
       dataIndex: 'guid',
       key: 'guid',
-      render: (text: string) => <Tag>{text.substring(0, 8)}...</Tag>
+      render: (text: string) => <Tag>{text ? text.substring(0, 8) + '...' : 'N/A'}</Tag>
     },
     {
       title: 'IP',
@@ -51,52 +90,79 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="site-layout-content">
-      <Row gutter={16}>
-        <Col span={8}>
-          <Card bordered={false}>
-            <Statistic
-              title="Server Status"
-              value={isConnected ? 'Online' : 'Offline'}
-              valueStyle={{ color: isConnected ? '#3f8600' : '#cf1322' }}
-              suffix={
-                <Tag color={isModConnected ? 'success' : 'default'} style={{ marginLeft: 10, fontSize: 12, verticalAlign: 'middle' }}>
-                  {isModConnected ? 'Mod Active' : 'Mod Waiting'}
-                </Tag>
-              }
-            />
-            {lastUpdate > 0 && <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Updated: {new Date(lastUpdate).toLocaleTimeString()}</div>}
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card bordered={false}>
-            <Statistic
-              title="Players Online"
-              value={playerCount}
-              precision={0}
-              valueStyle={{ color: '#fa541c' }} // Use accent color
-              prefix={<UserOutlined />}
-              suffix="/ 60"
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card bordered={false}>
-            <Statistic
-              title="Server FPS"
-              value={isConnected ? serverFps : 0} 
-              precision={0}
-              valueStyle={{ color: !isConnected ? '#cf1322' : serverFps > 50 ? '#3f8600' : serverFps > 30 ? '#faad14' : '#cf1322' }}
-              prefix={<ArrowUpOutlined />} 
-              suffix={serverFps > 0 ? " FPS" : ""}
-            />
-          </Card>
-        </Col>
+      {isFrozen && (
+        <Alert
+          message="Critical Warning: Server Freeze Detected"
+          description="RCON is active, but Telemetry has stopped. The server process is running but the game simulation loop may be frozen."
+          type="error"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+      )}
+      
+      {/* Status Overview Row */}
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+          {/* Server Process Status */}
+          <Col span={6}>
+            <Card bordered={false}>
+                <Statistic 
+                    title="Process Status"
+                    value={isProcessRunning ? 'Running' : 'Stopped'}
+                    valueStyle={{ color: isProcessRunning ? '#3f8600' : '#cf1322' }}
+                    prefix={isProcessRunning ? <SyncOutlined spin /> : <PoweroffOutlined />}
+                />
+            </Card>
+          </Col>
+
+          {/* RCON Status */}
+          <Col span={6}>
+            <Card bordered={false}>
+              <Statistic
+                title="RCON Connection"
+                value={isConnected ? 'Online' : 'Offline'}
+                valueStyle={{ color: isConnected ? '#3f8600' : '#cf1322' }}
+                suffix={
+                  <Tag color={isModConnected ? 'success' : 'default'} style={{ marginLeft: 10, fontSize: 12, verticalAlign: 'middle' }}>
+                    {isModConnected ? 'Mod Active' : 'Mod Waiting'}
+                  </Tag>
+                }
+              />
+            </Card>
+          </Col>
+
+          {/* Next Restart Countdown */}
+          <Col span={6}>
+            <Card bordered={false}>
+                <Statistic 
+                    title="Next Restart"
+                    value={timeToRestart}
+                    prefix={<ClockCircleOutlined />}
+                    valueStyle={{ color: scheduler.isRunning ? '#1890ff' : '#8c8c8c', fontSize: '1.2rem' }}
+                />
+                {scheduler.isRunning && <div style={{ fontSize: 10, color: '#888' }}>Interval: {scheduler.intervalMinutes}m</div>}
+            </Card>
+          </Col>
+
+          {/* FPS */}
+          <Col span={6}>
+            <Card bordered={false}>
+              <Statistic
+                title="Server FPS"
+                value={isConnected ? serverFps : 0} 
+                precision={serverFps < 10 ? 2 : 0}
+                decimalSeparator="."
+                valueStyle={{ color: !isConnected ? '#cf1322' : serverFps > 50 ? '#3f8600' : serverFps > 30 ? '#faad14' : '#cf1322' }}
+                prefix={<ArrowUpOutlined />} 
+                suffix=" FPS"
+              />
+            </Card>
+          </Col>
       </Row>
       
       <div style={{ marginTop: 24 }}>
         <Row gutter={16}>
            <Col span={16}>
-             <Card title="Player List" bordered={false} bodyStyle={{ padding: 0 }}>
+             <Card title={<Space><UserOutlined /><span>Online Players ({playerCount})</span></Space>} bordered={false} bodyStyle={{ padding: 0 }}>
                <Table 
                  dataSource={players} 
                  columns={columns} 

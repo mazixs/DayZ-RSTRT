@@ -17,7 +17,7 @@
     "react"
   ],
   "author": "mazix <mazix@bk.ru>",
-  "license": "MIT",
+  "license": "GPL-2.0",
   "dependencies": {
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",

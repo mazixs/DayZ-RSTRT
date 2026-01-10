@@ -43,7 +43,11 @@ const Settings: React.FC = () => {
 
   const onFinish = async (values: any) => {
     try {
-      await window.ipcRenderer.invoke('save-settings', values);
+      // Get current settings to ensure we merge and don't lose data from other tabs (like ProcessManager)
+      const currentSettings = await window.ipcRenderer.invoke('get-settings');
+      const newSettings = { ...currentSettings, ...values };
+
+      await window.ipcRenderer.invoke('save-settings', newSettings);
       messageApi.success('Settings saved successfully');
       
       // Update Scheduler Messages immediately
@@ -110,20 +114,6 @@ const Settings: React.FC = () => {
                 <Button onClick={handleDisconnect} loading={loading} danger icon={<DisconnectOutlined />}>Disconnect</Button>
               )}
           </Space>
-      </Space>
-  );
-
-  const processTab = (
-      <Space direction="vertical" style={{ width: '100%' }}>
-          <Form.Item label="Server Executable Path (.exe)" name="serverPath" help="Full path to DayZServer_x64.exe">
-            <Input placeholder="C:\Steam\steamapps\common\DayZServer\DayZServer_x64.exe" />
-          </Form.Item>
-          <Form.Item label="Launch Arguments" name="launchArgs" help="e.g., -config=serverDZ.cfg -port=2302 -profiles=Profiles -dologs -adminlog -netlog -freezecheck">
-            <Input.TextArea rows={3} placeholder="-config=serverDZ.cfg -port=2302 ..." />
-          </Form.Item>
-          <Form.Item label="Auto-Restart on Crash" name="autoRestart" valuePropName="checked">
-             <Switch />
-          </Form.Item>
       </Space>
   );
 
@@ -196,7 +186,6 @@ const Settings: React.FC = () => {
         >
           <Tabs defaultActiveKey="1" items={[
               { key: '1', label: 'RCON', children: rconTab },
-              { key: '2', label: 'Process Manager', children: processTab },
               { key: '3', label: 'Scheduler', children: schedulerTab }
           ]} />
           

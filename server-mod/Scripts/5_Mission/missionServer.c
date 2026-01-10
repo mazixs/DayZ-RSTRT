@@ -116,13 +116,17 @@ modded class MissionServer
         // 1. Gather Data
         float fps = m_Rstrt_CurrentFps;
         
+        // Get In-Game Time
+        int year, month, day, hour, minute;
+        GetGame().GetWorld().GetDate(year, month, day, hour, minute);
+        
         m_Rstrt_Players.Clear();
         GetGame().GetPlayers(m_Rstrt_Players);
         int playerCount = m_Rstrt_Players.Count();
 
         // 2. Build JSON Manually
         // Optimization: Reduce string concatenations
-        string json = "{\"fps\":" + fps.ToString() + ",\"playerCount\":" + playerCount.ToString() + ",\"timestamp\":" + GetGame().GetTime().ToString() + ",\"players\":[";
+        string json = "{\"fps\":" + fps.ToString() + ",\"gameTime\":{\"hour\":" + hour + ",\"minute\":" + minute + ",\"day\":" + day + ",\"month\":" + month + ",\"year\":" + year + "},\"playerCount\":" + playerCount.ToString() + ",\"timestamp\":" + GetGame().GetTime().ToString() + ",\"players\":[";
         
         if (playerCount > 0)
         {

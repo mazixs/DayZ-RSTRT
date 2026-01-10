@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Progress, Table, Tag, Alert, Space } from 'antd';
-import { ArrowUpOutlined, UserOutlined, ClockCircleOutlined, SyncOutlined, PoweroffOutlined } from '@ant-design/icons';
+import { Card, Col, Row, Statistic, Progress, Table, Tag, Alert, Space, Typography, Tooltip } from 'antd';
+import { ArrowUpOutlined, UserOutlined, ClockCircleOutlined, SyncOutlined, PoweroffOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import { useServerStore } from '../store/useStore';
 
+const { Text } = Typography;
+
 const Dashboard: React.FC = () => {
-  const { isConnected, playerCount, players, lastUpdate, serverFps, lastTelemetryUpdate, isProcessRunning, scheduler } = useServerStore();
+  const { isConnected, playerCount, players, lastUpdate, serverFps, lastTelemetryUpdate, isProcessRunning, scheduler, gameTime } = useServerStore();
   const [timeToRestart, setTimeToRestart] = useState<string>('--:--');
 
   const isModConnected = Date.now() - lastTelemetryUpdate < 15000 && lastTelemetryUpdate > 0;
@@ -50,6 +52,13 @@ const Dashboard: React.FC = () => {
       return () => clearInterval(timer);
   }, [scheduler]);
 
+  // Format In-Game Time
+  const formatGameTime = () => {
+      if (!gameTime) return '--:--';
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${pad(gameTime.hour)}:${pad(gameTime.minute)}`;
+  };
+
   const columns = [
     {
       title: 'Name',
@@ -60,22 +69,30 @@ const Dashboard: React.FC = () => {
       title: 'GUID',
       dataIndex: 'guid',
       key: 'guid',
-      render: (text: string) => <Tag>{text ? text.substring(0, 8) + '...' : 'N/A'}</Tag>
+      render: (text: string) => (
+        <Text copyable={{ text: text }} style={{ fontSize: 12 }}>
+            {text ? text.substring(0, 8) + '...' : 'N/A'}
+        </Text>
+      )
     },
     {
       title: 'IP',
       dataIndex: 'ip',
       key: 'ip',
+      render: (ip: string) => <span style={{ fontSize: 12 }}>{ip || 'Unknown'}</span>
     },
     {
       title: 'Ping',
       dataIndex: 'ping',
       key: 'ping',
-      render: (ping: number) => (
-        <Tag color={ping < 100 ? 'success' : ping < 200 ? 'warning' : 'error'}>
-          {ping} ms
-        </Tag>
-      )
+      render: (ping: number) => {
+        if (ping === undefined || ping === null) return <Tag>N/A</Tag>;
+        return (
+            <Tag color={ping < 100 ? 'success' : ping < 200 ? 'warning' : 'error'}>
+            {ping} ms
+            </Tag>
+        );
+      }
     },
     {
       title: 'Health',
@@ -116,7 +133,7 @@ const Dashboard: React.FC = () => {
       {/* Status Overview Row */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
           {/* Server Process Status */}
-          <Col span={6}>
+          <Col span={5}>
             <Card bordered={false}>
                 <Statistic 
                     title="Process Status"
@@ -128,7 +145,7 @@ const Dashboard: React.FC = () => {
           </Col>
 
           {/* RCON Status */}
-          <Col span={6}>
+          <Col span={5}>
             <Card bordered={false}>
               <Statistic
                 title="RCON Connection"
@@ -144,7 +161,7 @@ const Dashboard: React.FC = () => {
           </Col>
 
           {/* Next Restart Countdown */}
-          <Col span={6}>
+          <Col span={5}>
             <Card bordered={false}>
                 <Statistic 
                     title="Next Restart"
@@ -157,7 +174,7 @@ const Dashboard: React.FC = () => {
           </Col>
 
           {/* FPS */}
-          <Col span={6}>
+          <Col span={4}>
             <Card bordered={false}>
               <Statistic
                 title="Server FPS"
@@ -168,6 +185,19 @@ const Dashboard: React.FC = () => {
                 prefix={<ArrowUpOutlined />} 
                 suffix=" FPS"
               />
+            </Card>
+          </Col>
+
+          {/* In-Game Time */}
+          <Col span={5}>
+            <Card bordered={false}>
+              <Statistic
+                title="In-Game Time"
+                value={gameTime ? formatGameTime() : '--:--'}
+                prefix={<EnvironmentOutlined />}
+                valueStyle={{ color: '#faad14' }}
+              />
+              {gameTime && <div style={{ fontSize: 10, color: '#888' }}>{gameTime.day}.{gameTime.month}.{gameTime.year}</div>}
             </Card>
           </Col>
       </Row>

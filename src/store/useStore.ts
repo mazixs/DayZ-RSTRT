@@ -16,12 +16,13 @@ interface ServerState {
   players: Player[]
   serverName: string
   serverFps: number
+  gameTime?: { hour: number; minute: number; day: number; month: number; year: number }
   lastUpdate: number
   lastTelemetryUpdate: number
   connect: () => void
   disconnect: () => void
   updateStatus: (data: { playerCount: number; players: Player[]; timestamp: number }) => void
-  updateTelemetry: (data: { fps: number; playerCount: number; players?: any[]; timestamp: number }) => void
+  updateTelemetry: (data: { fps: number; gameTime?: any; playerCount: number; players?: any[]; timestamp: number }) => void
   
   // Process & Scheduler State
   isProcessRunning: boolean
@@ -139,6 +140,7 @@ export const useServerStore = create<ServerState>((set) => ({
     return {
       isConnected: true,
       serverFps: data.fps,
+      gameTime: data.gameTime,
       playerCount: data.playerCount,
       lastUpdate: data.timestamp,
       lastTelemetryUpdate: Date.now(),

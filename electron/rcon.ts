@@ -61,14 +61,16 @@ export class RconService {
       const lines = response.split('\n')
       const players: any[] = []
       
-      // Regex for BattlEye players output:
+      // Regex for BattlEye players output (relaxed):
       // 0   127.0.0.1:2304   0   beGuid(OK)   Name
-      // ID  IP:Port          Ping GUID(Status) Name
-      // Note: First few lines are headers
-      const regex = /^(\d+)\s+([\d\.]+:\d+)\s+(\d+)\s+([a-fA-F0-9]+)(\(.*\))?\s+(.+)$/
+      // Groups: 1=ID, 2=IP, 3=Ping, 4=GUID, 5=Name
+      const regex = /^(\d+)\s+([\d\.]+:\d+)\s+(\-?\d+)\s+([a-fA-F0-9]+)(?:\(.*\))?\s+(.+)$/
 
       for (const line of lines) {
         const trimmed = line.trim()
+        // Skip header lines
+        if (trimmed.startsWith('Players on server') || trimmed.startsWith('#') || trimmed.startsWith('ID')) continue;
+
         const match = trimmed.match(regex)
         if (match) {
           players.push({
@@ -76,7 +78,7 @@ export class RconService {
             ip: match[2],
             ping: parseInt(match[3]),
             guid: match[4],
-            name: match[6].trim()
+            name: match[5].trim()
           })
         }
       }

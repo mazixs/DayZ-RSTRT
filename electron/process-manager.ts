@@ -75,12 +75,16 @@ export class ProcessManager extends EventEmitter {
         });
     }
 
-    public async stop(force: boolean = false) {
+    public async stop(force: boolean = false, isRestart: boolean = false) {
         if (!this.process) return;
 
         this.isPlannedShutdown = true;
-        this.expectRestart = false; // Explicit stop means no restart
-        console.log(`[ProcessManager] Stopping server (Force: ${force})...`);
+        
+        if (!isRestart) {
+            this.expectRestart = false; // Explicit stop means no restart unless specified
+        }
+        
+        console.log(`[ProcessManager] Stopping server (Force: ${force}, Restart: ${isRestart})...`);
 
         if (force) {
             if (this.process.pid) {

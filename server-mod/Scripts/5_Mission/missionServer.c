@@ -121,8 +121,8 @@ modded class MissionServer
         int playerCount = m_Rstrt_Players.Count();
 
         // 2. Build JSON Manually
-        // Optimization: Reduce string concatenations on the main string
-        string json = "{\"fps\":" + fps + ",\"playerCount\":" + playerCount + ",\"timestamp\":" + GetGame().GetTime() + ",\"players\":[";
+        // Optimization: Reduce string concatenations
+        string json = "{\"fps\":" + fps.ToString() + ",\"playerCount\":" + playerCount.ToString() + ",\"timestamp\":" + GetGame().GetTime().ToString() + ",\"players\":[";
         
         if (playerCount > 0)
         {
@@ -136,11 +136,15 @@ modded class MissionServer
                     vector pos = pb.GetPosition();
                     float health = pb.GetHealth("","");
                     
-                    // Simple escape for quotes to prevent broken JSON
+                    // Simple escape for quotes
                     name.Replace("\"", "'"); 
                     
-                    // Build player object separately to append in one go
-                    string playerEntry = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"pos\":\"" + pos.ToString() + "\",\"health\":" + health + "}";
+                    // Format float/vector to reduce string size
+                    string posStr = string.Format("%1 %2 %3", pos[0].ToString(), pos[1].ToString(), pos[2].ToString());
+                    string healthStr = ((int)health).ToString();
+                    
+                    // Use Format to minimize string object creation during concatenation
+                    string playerEntry = string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"pos\":\"%3\",\"health\":%4}", id, name, posStr, healthStr);
                     
                     json += playerEntry;
                     if (i < playerCount - 1) json += ",";

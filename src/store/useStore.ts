@@ -82,6 +82,12 @@ export const useServerStore = create<ServerState>((set) => ({
       }
       return rconPlayer;
     });
+    
+    // Debug: Log if player count mismatch implies ghosts
+    if (state.players.length > mergedPlayers.length) {
+        const left = state.players.filter(p => !mergedPlayers.find(mp => mp.guid === p.guid));
+        console.log('[Store] Players removed:', left.map(p => p.name));
+    }
 
     return {
       isConnected: true,
@@ -94,7 +100,7 @@ export const useServerStore = create<ServerState>((set) => ({
     const telemPlayers = data.players || [];
     let updatedPlayers: Player[] = [];
 
-    if (state.players.length === 0 && telemPlayers.length > 0) {
+    if (!state.isConnected && telemPlayers.length > 0) {
       // RCON offline: Create players from Telemetry
       updatedPlayers = telemPlayers.map((p: any) => ({
         id: p.id,

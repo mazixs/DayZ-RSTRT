@@ -98,7 +98,7 @@ export class SchedulerService {
                 console.log(`[Scheduler] Sending notification: ${msg}`);
                 
                 if (this.rcon.isConnected()) {
-                    await this.rcon.send(`say -1 ${msg}`);
+                    await this.rcon.send(`say -1 RADIO ISLAND: ${msg}`);
                 }
             }
 
@@ -115,6 +115,14 @@ export class SchedulerService {
 
     private async performRestartSequence() {
         console.log('[Scheduler] Initiating Restart Sequence...');
+
+        // 0. If server is not running, just start it
+        if (!this.processManager.isRunning()) {
+            console.log('[Scheduler] Server not running. Starting immediately...');
+            await this.processManager.start();
+            this.lastNotifiedMinute = -1;
+            return;
+        }
         
         // 1. Tell ProcessManager we are planning a shutdown (so it doesn't alert "Crash")
         // And that we EXPECT it to restart automatically.
@@ -126,7 +134,8 @@ export class SchedulerService {
              await this.rcon.send('#shutdown');
         } else {
              console.warn('[Scheduler] RCON not connected during restart. Using Force Kill immediately.');
-             await this.processManager.stop(true); // Force kill immediately if no RCON
+             // Pass isRestart=true to ensure ProcessManager doesn't cancel the auto-restart
+             await this.processManager.stop(true, true); 
              this.lastNotifiedMinute = -1;
              return;
         }

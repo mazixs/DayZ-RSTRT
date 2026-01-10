@@ -12,6 +12,9 @@ const Dashboard: React.FC = () => {
   // Freeze Detection: RCON is connected (process alive) but Telemetry stopped (simulation dead)
   const isFrozen = isConnected && !isModConnected && lastTelemetryUpdate > 0;
 
+  // Stale Data Detection: RCON connected but no updates for > 10s
+  const isStale = isConnected && (Date.now() - lastUpdate > 10000);
+
   useEffect(() => {
     if (isFrozen) {
       if (Notification.permission !== 'granted') {
@@ -100,6 +103,16 @@ const Dashboard: React.FC = () => {
         />
       )}
       
+      {isStale && (
+        <Alert
+          message="Connection Lagging"
+          description="RCON updates are delayed. Player list and status may be outdated."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+      )}
+      
       {/* Status Overview Row */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
           {/* Server Process Status */}
@@ -161,7 +174,7 @@ const Dashboard: React.FC = () => {
       
       <div style={{ marginTop: 24 }}>
         <Row gutter={16}>
-           <Col span={16}>
+           <Col span={24}>
              <Card title={<Space><UserOutlined /><span>Online Players ({playerCount})</span></Space>} bordered={false} bodyStyle={{ padding: 0 }}>
                <Table 
                  dataSource={players} 
@@ -171,18 +184,6 @@ const Dashboard: React.FC = () => {
                  size="small"
                  locale={{ emptyText: isConnected ? 'No players online' : 'Server offline' }}
                />
-             </Card>
-           </Col>
-           <Col span={8}>
-             <Card title="Server Health" bordered={false}>
-                <div style={{ marginBottom: 16 }}>
-                  <span>CPU Usage</span>
-                  <Progress percent={32} strokeColor="#3f8600" size="small" />
-                </div>
-                <div>
-                  <span>RAM Usage</span>
-                  <Progress percent={54} strokeColor="#faad14" size="small" />
-                </div>
              </Card>
            </Col>
         </Row>

@@ -7,6 +7,14 @@ export class RconService {
   private connected: boolean = false
   private consecutiveFailures: number = 0
   private readonly MAX_FAILURES = 3
+  
+  // Command Queue System
+  private queue: Array<{ 
+      operation: () => Promise<any>, 
+      resolve: (value: any) => void, 
+      reject: (reason?: any) => void 
+  }> = [];
+  private isProcessing: boolean = false;
 
   constructor() {}
 
@@ -49,16 +57,21 @@ export class RconService {
     if (!this.client || !this.connected) {
       throw new Error('RCON not connected')
     }
-    return await this.client.sendCommand(command)
+    
+    // Simple Mutex: Append to promise chain
+    const result = await this.executeSafe(() => this.client.sendCommand(command));
+    return result;
   }
 
   async getPlayers() {
     if (!this.client || !this.connected) return []
     try {
-      const response = await this.client.sendCommand('players')
+      const response = await this.executeSafe(() => this.client.sendCommand('players'));
       if (!response) return []
       
-      const lines = response.split('\n')
+      console.log('[RCON DEBUG] Raw Players Output:\n', response); // DEBUG: Print exact output
+
+      const lines = (response as string).split('\n')
       const players: any[] = []
       
       // Regex for BattlEye players output (relaxed):
@@ -87,6 +100,52 @@ export class RconService {
       console.error('Failed to get players:', e)
       return []
     }
+  }
+
+  // Helper to serialize commands via Queue
+  private async executeSafe<T>(operation: () => Promise<T>): Promise<T> {
+      return new Promise((resolve, reject) => {
+          this.queue.push({ operation, resolve, reject });
+          this.processQueue();
+      });
+  }
+
+  private async processQueue() {
+      if (this.isProcessing || this.queue.length === 0) return;
+
+      this.isProcessing = true;
+      const item = this.queue.shift();
+
+      if (item) {
+          try {
+              // Wrap operation in a timeout to prevent infinite hangs
+              const result = await Promise.race([
+                  item.operation(),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('RCON Command Timeout')), 5000))
+              ]);
+              
+              // Success - reset failures
+              this.consecutiveFailures = 0;
+              item.resolve(result);
+          } catch (error) {
+              console.error('[RCON] Command failed:', error);
+              this.consecutiveFailures++;
+              
+              if (this.consecutiveFailures >= this.MAX_FAILURES) {
+                  console.error('[RCON] Max consecutive failures reached. Disconnecting...');
+                  this.connected = false;
+                  this.client = null; // Force reset
+              }
+              
+              item.reject(error);
+          } finally {
+              this.isProcessing = false;
+              // Add a small delay between commands to let RCON server breathe
+              setTimeout(() => this.processQueue(), 100);
+          }
+      } else {
+          this.isProcessing = false;
+      }
   }
 
   isConnected() {

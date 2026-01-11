@@ -37,25 +37,33 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 function startPolling() {
   if (statusInterval) clearInterval(statusInterval)
   statusInterval = setInterval(async () => {
+    // console.log('[Polling] Tick...'); 
     if (rcon.isConnected() && win) {
       try {
+        console.log('[Polling] Requesting players...');
         const players = await rcon.getPlayers()
+        console.log(`[Polling] Got ${players.length} players`);
+        
         win.webContents.send('rcon-update', {
           players,
           playerCount: players.length,
           timestamp: Date.now()
         })
       } catch (e) {
-        console.error('Polling error:', e)
+        console.error('[Polling] Error:', e)
         // Check if connection was lost (e.g. max retries reached in RconService)
         if (!rcon.isConnected()) {
-          console.warn('RCON Disconnected detected in polling loop')
+          console.warn('[Polling] RCON Disconnected detected in loop')
           win.webContents.send('rcon-disconnected')
           stopPolling()
         }
       }
     } else {
       // Safety check: if we're not connected but polling is running
+      // Notify frontend that we are stopping
+      if (!rcon.isConnected() && win) {
+          win.webContents.send('rcon-disconnected')
+      }
       stopPolling()
     }
   }, 5000) // Poll every 5 seconds

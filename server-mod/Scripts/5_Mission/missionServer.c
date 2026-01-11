@@ -126,7 +126,7 @@ modded class MissionServer
 
         // 2. Build JSON Manually
         // Optimization: Reduce string concatenations
-        string json = "{\"fps\":" + fps.ToString() + ",\"gameTime\":{\"hour\":" + hour + ",\"minute\":" + minute + ",\"day\":" + day + ",\"month\":" + month + ",\"year\":" + year + "},\"playerCount\":" + playerCount.ToString() + ",\"timestamp\":" + GetGame().GetTime().ToString() + ",\"players\":[";
+        string json = "{\"fps\":" + fps.ToString() + ",\"gameTime\":{\"hour\":" + hour + ",\"minute\":" + minute + ",\"day\":" + day + ",\"month\":" + month + ",\"year\":" + year + "},\"playerCount\":" + playerCount.ToString() + ",\"players\":[";
         
         if (playerCount > 0)
         {

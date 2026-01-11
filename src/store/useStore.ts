@@ -138,11 +138,15 @@ export const useServerStore = create<ServerState>((set) => ({
     }
 
     return {
-      isConnected: true,
+      // Do NOT set isConnected: true here. Telemetry does not equal RCON connection.
       serverFps: data.fps,
       gameTime: data.gameTime,
       playerCount: data.playerCount,
-      lastUpdate: data.timestamp,
+      // Do NOT use data.timestamp from mod (it's game time). Use local time for freshness check.
+      // Actually, let's NOT update lastUpdate here, because lastUpdate is used for RCON staleness check.
+      // If we update it, we mask RCON death.
+      // But we need to update UI.
+      // Let's rely on isConnected being false to switch UI modes.
       lastTelemetryUpdate: Date.now(),
       players: updatedPlayers
     };

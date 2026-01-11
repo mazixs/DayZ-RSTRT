@@ -99,6 +99,8 @@ export class SchedulerService {
                 
                 if (this.rcon.isConnected()) {
                     await this.rcon.send(`say -1 RADIO ISLAND: ${msg}`);
+                } else {
+                    console.warn('[Scheduler] Cannot send notification: RCON is disconnected.');
                 }
             }
 

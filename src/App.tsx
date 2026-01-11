@@ -48,12 +48,16 @@ function App() {
     };
     checkStatus();
 
-    // Listen for updates
-    const handleUpdate = (_event: any, data: any) => {
+    // Define Handlers
+    const handleRconUpdate = (_event: any, data: any) => {
       updateStatus(data);
     };
 
-    const handleTelemetry = (_event: any, data: any) => {
+    const handleRconDisconnect = (_event: any) => {
+      disconnect();
+    };
+
+    const handleTelemetryUpdate = (_event: any, data: any) => {
       try {
         const parsed = typeof data === 'string' ? JSON.parse(data) : data;
         updateTelemetry(parsed);
@@ -62,28 +66,27 @@ function App() {
       }
     };
 
-    const handleDisconnect = () => {
-      disconnect();
-    };
-
-    const handleProcessStatus = (_event: any, status: string) => {
-        setProcessStatus(status === 'running');
+    const handleProcessStatus = (_event: any, status: any) => {
+        // status might be object or boolean depending on backend
+        setProcessStatus(typeof status === 'object' ? status.isRunning : status === 'running' || status === true);
     };
 
     const handleSchedulerStatus = (_event: any, status: any) => {
         setSchedulerStatus(status);
     };
 
-    window.ipcRenderer.on('rcon-update', handleUpdate);
-    window.ipcRenderer.on('rcon-disconnected', handleDisconnect);
-    window.ipcRenderer.on('telemetry-update', handleTelemetry);
+    // Register Listeners
+    window.ipcRenderer.on('rcon-update', handleRconUpdate);
+    window.ipcRenderer.on('rcon-disconnected', handleRconDisconnect);
+    window.ipcRenderer.on('telemetry-update', handleTelemetryUpdate);
     window.ipcRenderer.on('process-status-change', handleProcessStatus);
     window.ipcRenderer.on('scheduler-status', handleSchedulerStatus);
 
+    // Cleanup
     return () => {
-      window.ipcRenderer.off('rcon-update', handleUpdate);
-      window.ipcRenderer.off('rcon-disconnected', handleDisconnect);
-      window.ipcRenderer.off('telemetry-update', handleTelemetry);
+      window.ipcRenderer.off('rcon-update', handleRconUpdate);
+      window.ipcRenderer.off('rcon-disconnected', handleRconDisconnect);
+      window.ipcRenderer.off('telemetry-update', handleTelemetryUpdate);
       window.ipcRenderer.off('process-status-change', handleProcessStatus);
       window.ipcRenderer.off('scheduler-status', handleSchedulerStatus);
     };

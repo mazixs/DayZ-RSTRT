@@ -1,7 +1,8 @@
 // @ts-ignore
 import BattleNode from 'battle-node-v2'
+import { EventEmitter } from 'events'
 
-export class RconService {
+export class RconService extends EventEmitter {
   private client: any | null = null
   private config: any = null
   private connected: boolean = false
@@ -16,7 +17,9 @@ export class RconService {
   }> = [];
   private isProcessing: boolean = false;
 
-  constructor() {}
+  constructor() {
+    super()
+  }
 
   async connect(config: { host: string; port: number; password: string }) {
     if (this.client) {
@@ -34,6 +37,35 @@ export class RconService {
         rconPassword: config.password,
         timeout: 5000
       })
+
+      // Setup Event Listeners for BattlEye Messages
+      if (this.client.on) {
+          this.client.on('message', (message: string) => {
+              // console.log('[RCON MESSAGE]', message);
+              
+              // Detect Player Joins/Leaves/Verification
+              // "Player #1 Mazix connected"
+              // "Player #1 Mazix disconnected"
+              // "Verified GUID (...) of player #1 Mazix"
+              if (
+                  message.includes(' connected') || 
+                  message.includes(' disconnected') || 
+                  message.includes('Verified GUID') ||
+                  message.includes('Player #') ||
+                  message.includes(' kicked') ||
+                  message.includes(' banned')
+              ) {
+                  console.log('[RCON Event] Activity detected:', message.trim());
+                  this.emit('player-activity');
+              }
+          });
+
+          this.client.on('disconnected', () => {
+              console.warn('[RCON] Connection lost (event)');
+              this.connected = false;
+              this.emit('disconnected');
+          });
+      }
 
       await this.client.login()
       this.connected = true
@@ -69,8 +101,6 @@ export class RconService {
       const response = await this.executeSafe(() => this.client.sendCommand('players'));
       if (!response) return []
       
-      console.log('[RCON DEBUG] Raw Players Output:\n', response); // DEBUG: Print exact output
-
       const lines = (response as string).split('\n')
       const players: any[] = []
       

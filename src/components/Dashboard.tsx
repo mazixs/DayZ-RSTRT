@@ -14,8 +14,8 @@ const Dashboard: React.FC = () => {
   // Freeze Detection: RCON is connected (process alive) but Telemetry stopped (simulation dead)
   const isFrozen = isConnected && !isModConnected && lastTelemetryUpdate > 0;
 
-  // Stale Data Detection: RCON connected but no updates for > 10s
-  const isStale = isConnected && (Date.now() - lastUpdate > 10000);
+  // Stale Data Detection: RCON connected but no updates for > 70s (Heartbeat is 60s)
+  const isStale = isConnected && (Date.now() - lastUpdate > 70000);
 
   useEffect(() => {
     if (isFrozen) {

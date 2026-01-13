@@ -12,6 +12,7 @@ import Dashboard from './components/Dashboard';
 import ProcessManager from './components/ProcessManager';
 import PlaceholderPage from './components/PlaceholderPage';
 import Settings from './components/Settings';
+import Players from './components/Players';
 import { useServerStore } from './store/useStore';
 
 const { Header, Content, Footer, Sider } = Layout;
@@ -110,7 +111,7 @@ function App() {
       case '2':
         return <PlaceholderPage title="Analytics" />;
       case '3':
-        return <PlaceholderPage title="Players" />;
+        return <Players />;
       case '4':
         return <PlaceholderPage title="Logs" />;
       case '5':

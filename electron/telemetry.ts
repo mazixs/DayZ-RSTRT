@@ -1,5 +1,4 @@
 import express from 'express';
-import bodyParser from 'body-parser';
 import cors from 'cors';
 import { BrowserWindow } from 'electron';
 import crypto from 'crypto';
@@ -22,10 +21,10 @@ export class TelemetryServer {
 
   private setupMiddleware() {
     this.app.use(cors());
-    this.app.use(bodyParser.json());
+    this.app.use(express.json());
     // Parse ALL other content types as text to handle missing headers from DayZ
-    this.app.use(bodyParser.text({ type: '*/*' }));
-    this.app.use(bodyParser.urlencoded({ extended: true }));
+    this.app.use(express.text({ type: '*/*' }));
+    this.app.use(express.urlencoded({ extended: true }));
   }
 
   private calculateBEGuid(steamId: string): string {

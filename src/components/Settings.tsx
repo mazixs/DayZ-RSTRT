@@ -126,27 +126,42 @@ const Settings: React.FC = () => {
              <InputNumber min={60} max={1440} step={30} style={{ width: 200 }} />
           </Form.Item>
           
-          <Divider orientation="left">Custom Notification Messages</Divider>
-          <p style={{ color: '#888', marginBottom: 16 }}>Customize the warnings sent to players before a restart.</p>
-          
-          <Form.Item label="30 Minutes Warning" name={['messages', '30']}>
-             <Input placeholder="Weather Warning: Severe storm approaching in 30 minutes." />
-          </Form.Item>
-          <Form.Item label="15 Minutes Warning" name={['messages', '15']}>
-             <Input placeholder="Weather Warning: Storm intensity increasing. Seek shelter in 15 minutes." />
-          </Form.Item>
-          <Form.Item label="5 Minutes Warning" name={['messages', '5']}>
-             <Input placeholder="CRITICAL: Storm imminent. Evacuate to safe zone immediately (5 mins)." />
-          </Form.Item>
-          <Form.Item label="3 Minutes Warning" name={['messages', '3']}>
-             <Input placeholder="CRITICAL: Safe zones closing in 3 minutes. LOG OUT NOW to save gear." />
-          </Form.Item>
-          <Form.Item label="2 Minutes Warning (Lock)" name={['messages', '2']}>
-             <Input placeholder="System Alert: Server locking down. Incoming connection paused." />
-          </Form.Item>
-           <Form.Item label="1 Minute Warning" name={['messages', '1']}>
-             <Input placeholder="IMPACT IMMINENT. Server shutdown in 60 seconds." />
-          </Form.Item>
+          <Divider orientation="left">Scheduled Tasks (BEC Style)</Divider>
+          <p style={{ color: '#888', marginBottom: 16 }}>
+            Define commands to run at specific times before restart. 
+            Use <code>say -1 Message</code> for global chat.
+          </p>
+
+          <Form.List name="schedulerTasks">
+            {(fields, { add, remove }) => (
+              <div>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'minutesBefore']}
+                      rules={[{ required: true, message: 'Missing time' }]}
+                    >
+                      <InputNumber placeholder="Min" style={{ width: 110 }} min={0} addonAfter="min" />
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'command']}
+                      rules={[{ required: true, message: 'Missing command' }]}
+                    >
+                      <Input placeholder="Command (e.g. say -1 Hello)" style={{ width: 400 }} />
+                    </Form.Item>
+                    <DisconnectOutlined onClick={() => remove(name)} style={{ color: 'red', cursor: 'pointer' }} />
+                  </Space>
+                ))}
+                <Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<ApiOutlined />}>
+                    Add Task
+                  </Button>
+                </Form.Item>
+              </div>
+            )}
+          </Form.List>
 
           <Alert message="Scheduler Status" description={
               scheduler.isRunning 
@@ -174,14 +189,15 @@ const Settings: React.FC = () => {
             autoRestart: true,
             schedulerEnabled: false,
             restartInterval: 240,
-            messages: {
-                30: "Weather Warning: Severe storm approaching in 30 minutes.",
-                15: "Weather Warning: Storm intensity increasing. Seek shelter in 15 minutes.",
-                5: "CRITICAL: Storm imminent. Evacuate to safe zone immediately (5 mins).",
-                3: "CRITICAL: Safe zones closing in 3 minutes. LOG OUT NOW to save gear.",
-                2: "System Alert: Server locking down. Incoming connection paused.",
-                1: "IMPACT IMMINENT. Server shutdown in 60 seconds."
-            }
+            schedulerTasks: [
+                { minutesBefore: 30, command: 'say -1 RADIO ISLAND: Weather Warning: Severe storm approaching in 30 minutes.' },
+                { minutesBefore: 15, command: 'say -1 RADIO ISLAND: Weather Warning: Storm intensity increasing. Seek shelter in 15 minutes.' },
+                { minutesBefore: 5, command: 'say -1 RADIO ISLAND: CRITICAL: Storm imminent. Evacuate to safe zone immediately (5 mins).' },
+                { minutesBefore: 3, command: 'say -1 RADIO ISLAND: CRITICAL: Safe zones closing in 3 minutes. LOG OUT NOW to save gear.' },
+                { minutesBefore: 2, command: 'say -1 RADIO ISLAND: System Alert: Server locking down. Incoming connection paused.' },
+                { minutesBefore: 2, command: '#lock' },
+                { minutesBefore: 1, command: 'say -1 RADIO ISLAND: IMPACT IMMINENT. Server shutdown in 60 seconds.' }
+            ]
           }}
         >
           <Tabs defaultActiveKey="1" items={[

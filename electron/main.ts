@@ -5,6 +5,7 @@ import { RconService } from './rcon'
 import { TelemetryServer } from './telemetry'
 import { ProcessManager } from './process-manager'
 import { SchedulerService } from './scheduler'
+import { logger } from './logger'
 
 // Initialize local store
 const store = new Store()
@@ -14,9 +15,15 @@ const processManager = new ProcessManager()
 const scheduler = new SchedulerService(rcon, processManager)
 
 // Load saved scheduler settings
-const savedMessages = store.get('messages');
-if (savedMessages) {
-    scheduler.setMessages(savedMessages as any);
+const savedTasks = store.get('schedulerTasks');
+if (savedTasks) {
+    scheduler.setTasks(savedTasks as any);
+} else {
+    // Try legacy messages
+    const savedMessages = store.get('messages');
+    if (savedMessages) {
+        scheduler.setMessages(savedMessages as any);
+    }
 }
 const savedInterval = store.get('restartInterval') as number;
 const schedulerEnabled = store.get('schedulerEnabled') as boolean;

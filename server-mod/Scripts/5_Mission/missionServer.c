@@ -70,6 +70,11 @@ modded class MissionServer
 
         m_RstrtEndpoint = m_RstrtConfig.Endpoint;
         
+        // Debug: Print Initial Date
+        int y, m, d, h, min;
+        GetGame().GetWorld().GetDate(y, m, d, h, min);
+        Print("[RSTRT] Initial World Date: " + d + "." + m + "." + y + " Time: " + h + ":" + min);
+
         // 2. Setup RestApi
         // Note: RestApi module must be enabled in server config or startup parameters
         RestApi api = GetRestApi();
@@ -125,8 +130,8 @@ modded class MissionServer
         int playerCount = m_Rstrt_Players.Count();
 
         // 2. Build JSON Manually
-        // Optimization: Reduce string concatenations
-        string json = "{\"fps\":" + fps.ToString() + ",\"gameTime\":{\"hour\":" + hour + ",\"minute\":" + minute + ",\"day\":" + day + ",\"month\":" + month + ",\"year\":" + year + "},\"playerCount\":" + playerCount.ToString() + ",\"players\":[";
+        // Optimization: Use string.Format for header to avoid multiple concats
+        string json = string.Format("{\"fps\":%1,\"gameTime\":{\"hour\":%2,\"minute\":%3,\"day\":%4,\"month\":%5,\"year\":%6},\"playerCount\":%7,\"players\":[", fps, hour, minute, day, month, year, playerCount);
         
         if (playerCount > 0)
         {
@@ -143,12 +148,9 @@ modded class MissionServer
                     // Simple escape for quotes
                     name.Replace("\"", "'"); 
                     
-                    // Format float/vector to reduce string size
-                    string posStr = string.Format("%1 %2 %3", pos[0].ToString(), pos[1].ToString(), pos[2].ToString());
-                    string healthStr = ((int)health).ToString();
-                    
-                    // Use Format to minimize string object creation during concatenation
-                    string playerEntry = string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"pos\":\"%3\",\"health\":%4}", id, name, posStr, healthStr);
+                    // User Request: Avoid explicit casting to int to save "conversion" CPU cycles, 
+                    // even if it results in longer strings.
+                    string playerEntry = string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"pos\":\"%3 %4 %5\",\"health\":%6}", id, name, pos[0], pos[1], pos[2], health);
                     
                     json += playerEntry;
                     if (i < playerCount - 1) json += ",";

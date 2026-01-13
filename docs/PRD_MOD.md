@@ -63,10 +63,12 @@ modded class MissionServer {
     void Rstrt_SendTelemetry() {
         if (!m_RstrtApi) return;
         
-        // Сбор данных (Оптимизировано: переиспользование массива игроков)
-        float fps = m_Rstrt_CurrentFps; // Ручной расчет для точности
+        // Сбор данных (Оптимизировано: string.Format во избежание аллокаций)
+        float fps = m_Rstrt_CurrentFps; 
+        string json = string.Format("{\"fps\":%1...", fps);
         
-        // Построение JSON и отправка
+        // ... Цикл по игрокам с оптимизированным форматированием ...
+
         m_RstrtApi.POST(m_RstrtCallback, "", json);
     }
 }

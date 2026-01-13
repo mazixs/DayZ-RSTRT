@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import { RconService } from './rcon';
 import { ProcessManager } from './process-manager';
+import { logger } from './logger';
 
 export class SchedulerService {
     private rcon: RconService;
@@ -12,23 +13,33 @@ export class SchedulerService {
     private timer: NodeJS.Timeout | null = null;
     private isRunning: boolean = false;
 
-    // Immersion messages (Minutes Remaining -> Message)
-    private messages: Record<number, string> = {
-        30: "Weather Warning: Severe storm approaching in 30 minutes.",
-        15: "Weather Warning: Storm intensity increasing. Seek shelter in 15 minutes.",
-        5: "CRITICAL: Storm imminent. Evacuate to safe zone immediately (5 mins).",
-        3: "CRITICAL: Safe zones closing in 3 minutes. LOG OUT NOW to save gear.",
-        2: "System Alert: Server locking down. Incoming connection paused.",
-        1: "IMPACT IMMINENT. Server shutdown in 60 seconds."
-    };
+    // Dynamic Task List (BEC Style)
+    // command: 'say -1 msg' or '#lock' or 'custom'
+    private tasks: Array<{ minutesBefore: number, command: string }> = [];
 
     constructor(rcon: RconService, processManager: ProcessManager) {
         this.rcon = rcon;
         this.processManager = processManager;
+        
+        // Initialize Default BEC-like Schedule
+        this.tasks = [
+            { minutesBefore: 30, command: 'say -1 RADIO ISLAND: Weather Warning: Severe storm approaching in 30 minutes.' },
+            { minutesBefore: 15, command: 'say -1 RADIO ISLAND: Weather Warning: Storm intensity increasing. Seek shelter in 15 minutes.' },
+            { minutesBefore: 5, command: 'say -1 RADIO ISLAND: CRITICAL: Storm imminent. Evacuate to safe zone immediately (5 mins).' },
+            { minutesBefore: 3, command: 'say -1 RADIO ISLAND: CRITICAL: Safe zones closing in 3 minutes. LOG OUT NOW to save gear.' },
+            { minutesBefore: 2, command: 'say -1 RADIO ISLAND: System Alert: Server locking down. Incoming connection paused.' },
+            { minutesBefore: 2, command: '#lock' },
+            { minutesBefore: 1, command: 'say -1 RADIO ISLAND: IMPACT IMMINENT. Server shutdown in 60 seconds.' }
+        ];
     }
 
     public setMainWindow(win: BrowserWindow) {
         this.mainWindow = win;
+    }
+    
+    public setTasks(tasks: Array<{ minutesBefore: number, command: string }>) {
+        this.tasks = tasks;
+        logger.log('[Scheduler] Tasks updated:', tasks);
     }
 
     public start(intervalMinutes: number) {
@@ -39,7 +50,7 @@ export class SchedulerService {
         if (this.timer) clearInterval(this.timer);
         this.timer = setInterval(() => this.tick(), 10000); // Check every 10 seconds
         
-        console.log(`[Scheduler] Started. Next restart in ${intervalMinutes} minutes.`);
+        logger.log(`[Scheduler] Started. Next restart in ${intervalMinutes} minutes.`);
         this.broadcastStatus();
     }
 
@@ -47,7 +58,7 @@ export class SchedulerService {
         if (this.timer) clearInterval(this.timer);
         this.timer = null;
         this.isRunning = false;
-        console.log('[Scheduler] Stopped.');
+        logger.log('[Scheduler] Stopped.');
         this.broadcastStatus();
     }
 
@@ -60,7 +71,21 @@ export class SchedulerService {
     }
 
     public setMessages(messages: Record<number, string>) {
-        this.messages = messages;
+        // Legacy Support: Convert old map to new task list
+        const newTasks: Array<{ minutesBefore: number, command: string }> = [];
+        
+        Object.entries(messages).forEach(([minStr, msg]) => {
+            const min = parseInt(minStr);
+            newTasks.push({ minutesBefore: min, command: `say -1 RADIO ISLAND: ${msg}` });
+            
+            // Re-add the lock command if it was implicitly at 2 mins
+            if (min === 2) {
+                newTasks.push({ minutesBefore: 2, command: '#lock' });
+            }
+        });
+        
+        this.tasks = newTasks;
+        logger.log('[Scheduler] Legacy messages converted to tasks.');
     }
 
     private scheduleNextRestart() {
@@ -93,34 +118,31 @@ export class SchedulerService {
         if (minutesRemaining !== this.lastNotifiedMinute) {
             this.lastNotifiedMinute = minutesRemaining;
             
-            if (this.messages[minutesRemaining]) {
-                const msg = this.messages[minutesRemaining];
-                console.log(`[Scheduler] Sending notification: ${msg}`);
-                
-                if (this.rcon.isConnected()) {
-                    await this.rcon.send(`say -1 RADIO ISLAND: ${msg}`);
-                } else {
-                    console.warn('[Scheduler] Cannot send notification: RCON is disconnected.');
-                }
+            // Find all tasks for this minute
+            const tasksToRun = this.tasks.filter(t => t.minutesBefore === minutesRemaining);
+            
+            if (tasksToRun.length > 0) {
+                logger.log(`[Scheduler] Executing ${tasksToRun.length} tasks for T-${minutesRemaining}m`);
             }
 
-            // Special Actions
-            if (minutesRemaining === 2) {
-                // LOCK SERVER
+            for (const task of tasksToRun) {
+                logger.log(`[Scheduler] Running command: ${task.command}`);
+                
                 if (this.rcon.isConnected()) {
-                    console.log('[Scheduler] Locking server...');
-                    await this.rcon.send('#lock');
+                    await this.rcon.send(task.command);
+                } else {
+                    logger.warn('[Scheduler] Cannot execute task: RCON is disconnected.');
                 }
             }
         }
     }
 
     private async performRestartSequence() {
-        console.log('[Scheduler] Initiating Restart Sequence...');
+        logger.log('[Scheduler] Initiating Restart Sequence...');
 
         // 0. If server is not running, just start it
         if (!this.processManager.isRunning()) {
-            console.log('[Scheduler] Server not running. Starting immediately...');
+            logger.log('[Scheduler] Server not running. Starting immediately...');
             await this.processManager.start();
             this.lastNotifiedMinute = -1;
             return;
@@ -132,10 +154,10 @@ export class SchedulerService {
         
         // 2. Send Shutdown Command
         if (this.rcon.isConnected()) {
-             console.log('[Scheduler] Sending #shutdown...');
+             logger.log('[Scheduler] Sending #shutdown...');
              await this.rcon.send('#shutdown');
         } else {
-             console.warn('[Scheduler] RCON not connected during restart. Using Force Kill immediately.');
+             logger.warn('[Scheduler] RCON not connected during restart. Using Force Kill immediately.');
              // Pass isRestart=true to ensure ProcessManager doesn't cancel the auto-restart
              await this.processManager.stop(true, true); 
              this.lastNotifiedMinute = -1;
@@ -143,13 +165,13 @@ export class SchedulerService {
         }
 
         // 3. Watchdog: Wait 45 seconds for graceful exit
-        console.log('[Scheduler] Waiting for graceful shutdown (45s timeout)...');
+        logger.log('[Scheduler] Waiting for graceful shutdown (45s timeout)...');
         setTimeout(() => {
             if (this.processManager.isRunning()) {
-                console.warn('[Scheduler] Watchdog: Server hung during shutdown. Force killing...');
+                logger.warn('[Scheduler] Watchdog: Server hung during shutdown. Force killing...');
                 this.processManager.forceKill();
             } else {
-                console.log('[Scheduler] Watchdog: Server shutdown successfully.');
+                logger.log('[Scheduler] Watchdog: Server shutdown successfully.');
             }
         }, 45000);
 
